@@ -1,43 +1,11 @@
-"""
-Bank statement transaction parser.
 
-Design notes (why this looks the way it does):
-
-Real bank-statement text extraction (via pdfplumber) is messy in ways that
-differ *per bank*, not just "wrapped dates" or "wrapped descriptions" in the
-abstract:
-
-  - Kotak / Axis: one date column, DD-MM-YYYY.
-  - HDFC: DD/MM/YY (2-digit year), with a repeated "value date" column
-    printed *between* the reference number and the amount.
-  - ICICI: leading serial number, two date columns (value date, txn date),
-    a numeric cheque/ref column, and an explicit "-" placeholder for
-    whichever of debit/credit is empty on that row.
-  - SBI: "DD Mon YYYY" text dates (two columns), and — this is the
-    important one — when a description wraps to two lines, pdfplumber's
-    column-based extraction does NOT keep the wrapped word next to the
-    line it belongs with. It reorders it into THREE physical lines:
-        "TRANSFER TO/FROM BESCOM"          <- prefix (before the row)
-        "04 Jan 2025 04 Jan 2025 <ref> <amt> <balance>"   <- the "row"
-        "ELECTRICITY"                      <- suffix (after the row)
-    A naive "join this line with the next" approach misses this pattern
-    entirely, since the continuation can appear *before* the numeric row.
-
-Because of this, a single generic regex cannot reliably parse every bank.
-This module normalizes wrapped/orphaned lines generically (bank-agnostic),
-then applies a small per-bank line template, falling back to a generic
-template for banks we don't have a template for. Debit vs. credit is
-always derived from the running-balance delta (not column position),
-since column layout/order varies and OCR frequently misaligns columns.
-"""
 
 import re
 import pandas as pd
 
 
-# ---------------------------------------------------------------------------
 # Date patterns
-# ---------------------------------------------------------------------------
+
 
 # DD-MM-YYYY / DD/MM/YYYY / DD/MM/YY, and "DD Mon YYYY" (SBI-style).
 DATE_TOKEN = r"\d{2}[-/]\d{2}[-/]\d{2,4}|\d{2}\s+[A-Za-z]{3,9}\s+\d{4}"
@@ -65,10 +33,10 @@ def _parse_date(s: str):
     return pd.to_datetime(s, errors="coerce", dayfirst=True)
 
 
-# ---------------------------------------------------------------------------
+
 # Line-level junk filtering (headers / footers / metadata that repeat on
 # every page and would otherwise get swept up as "orphan" description text)
-# ---------------------------------------------------------------------------
+
 
 _HEADER_KEYWORDS = [
     "ACCOUNT NAME", "ACCOUNT NO", "ACCOUNT NUMBER", "ACCOUNT TYPE",
