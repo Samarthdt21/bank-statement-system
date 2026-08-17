@@ -1,0 +1,12 @@
+pdfplumber
+PyMuPDF
+pytesseract
+pdf2image
+Pillow
+pandas
+openpyxl
+scikit-learn
+joblib
+regex
+streamlit
+python-dateutil
